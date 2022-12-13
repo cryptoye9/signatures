@@ -27,7 +27,7 @@ contract Vault is ERC721Holder, ERC1155Holder {
         bool withdrawn;
     }
 
-    mapping(uint256 => Asset) assets;
+    mapping(uint256 => Asset) public assets;
 
     error InvalidSignatureOrAlreadyWithdrawn();
     error SignatureOverdue();
