@@ -32,6 +32,7 @@ contract Vault is ERC721Holder, ERC1155Holder {
     error InvalidSignatureOrAlreadyWithdrawn();
     error SignatureOverdue();
     error AssetLocked();
+    error UnsupportedAsset();
 
     function createVault(
         AssetType asset, 
@@ -43,11 +44,14 @@ contract Vault is ERC721Holder, ERC1155Holder {
         if (asset == AssetType.ERC20) IERC20(assetAddress).safeTransferFrom(msg.sender, address(this), amount);
         else if (asset == AssetType.ERC721) IERC721(assetAddress).safeTransferFrom(msg.sender, address(this), tokenId);
         else if (asset == AssetType.ERC1155) IERC1155(assetAddress).safeTransferFrom(msg.sender, address(this), tokenId, 1, "");
+        if (asset == AssetType.Ether) {
+            assets[signatureCount].amount = msg.value;
+        } else assets[signatureCount].amount = amount;
+
         assets[signatureCount].depositor = msg.sender;
         assets[signatureCount].assetType = asset;
         assets[signatureCount].assetAddress = assetAddress;
         assets[signatureCount].tokenId = tokenId;
-        assets[signatureCount].amount = amount;
         assets[signatureCount].unlockTime = unlockTime;
     }
 
@@ -58,11 +62,14 @@ contract Vault is ERC721Holder, ERC1155Holder {
             assets[_assetId].withdrawn = true;
             AssetType asset = assets[_assetId].assetType;
             address assetAddress = assets[_assetId].assetAddress;
-            if (asset == AssetType.ERC20) IERC20(assetAddress).safeTransfer(_to, assets[_assetId].amount);
-            else if (asset == AssetType.ERC721) {
+            if (asset == AssetType.ERC20) {
+                IERC20(assetAddress).safeTransfer(_to, assets[_assetId].amount);
+            } else if (asset == AssetType.ERC721) {
                 IERC721(assetAddress).safeTransferFrom(address(this), _to, assets[_assetId].tokenId);
             } else if (asset == AssetType.ERC1155) {
                 IERC1155(assetAddress).safeTransferFrom(address(this), _to, assets[_assetId].tokenId, 1, "");
+            } else if (asset == AssetType.Ether) {
+                Address.sendValue(payable(_to), assets[_assetId].amount);
             }
         } else revert InvalidSignatureOrAlreadyWithdrawn();
     }
