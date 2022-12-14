@@ -18,12 +18,12 @@ contract Vault is ERC721Holder, ERC1155Holder {
 
     enum AssetType { Ether, ERC20, ERC721, ERC1155 }
     struct Asset {
-        bytes32 signature;
+        address depositor;
         AssetType assetType;
         address assetAddress;
-        uint256 tokenId;
+        uint256 tokenId;   
         uint256 amount;
-        uint256 deadline;
+        uint256 unlockTime;
         bool withdrawn;
     }
 
@@ -31,49 +31,60 @@ contract Vault is ERC721Holder, ERC1155Holder {
 
     error InvalidSignatureOrAlreadyWithdrawn();
     error SignatureOverdue();
+    error AssetLocked();
 
     function createVault(
         AssetType asset, 
         address assetAddress, 
         uint256 tokenId, 
         uint256 amount, 
-        uint256 deadline,
-        bytes32 signature
+        uint256 unlockTime
     ) external payable {
         if (asset == AssetType.ERC20) IERC20(assetAddress).safeTransferFrom(msg.sender, address(this), amount);
         else if (asset == AssetType.ERC721) IERC721(assetAddress).safeTransferFrom(msg.sender, address(this), tokenId);
         else if (asset == AssetType.ERC1155) IERC1155(assetAddress).safeTransferFrom(msg.sender, address(this), tokenId, 1, "");
-        assets[signatureCount].signature = signature;
+        assets[signatureCount].depositor = msg.sender;
         assets[signatureCount].assetType = asset;
         assets[signatureCount].assetAddress = assetAddress;
         assets[signatureCount].tokenId = tokenId;
         assets[signatureCount].amount = amount;
-        assets[signatureCount].deadline = deadline;
+        assets[signatureCount].unlockTime = unlockTime;
     }
 
-    function withdrawAsset(uint256 sigId) external {
-        if (isSignatureValid(sigId, msg.sender, assets[sigId].deadline) && !assets[signatureCount].withdrawn) {
-            AssetType asset = assets[signatureCount].assetType;
-            address assetAddress = assets[signatureCount].assetAddress;
-            if (asset == AssetType.ERC20) IERC20(assetAddress).safeTransfer(msg.sender, assets[signatureCount].amount);
+    function withdrawAsset(uint256 _assetId, address _to, uint256 _deadline, bytes memory signature) external {
+        if (verify(assets[_assetId].depositor, _assetId, msg.sender, _deadline, signature) && !assets[_assetId].withdrawn) {
+            if (block.timestamp > _deadline) revert SignatureOverdue();
+            else if (block.timestamp < assets[_assetId].unlockTime) revert AssetLocked();
+            assets[_assetId].withdrawn = true;
+            AssetType asset = assets[_assetId].assetType;
+            address assetAddress = assets[_assetId].assetAddress;
+            if (asset == AssetType.ERC20) IERC20(assetAddress).safeTransfer(_to, assets[_assetId].amount);
             else if (asset == AssetType.ERC721) {
-                IERC721(assetAddress).safeTransferFrom(address(this), msg.sender, assets[signatureCount].tokenId);
+                IERC721(assetAddress).safeTransferFrom(address(this), _to, assets[_assetId].tokenId);
             } else if (asset == AssetType.ERC1155) {
-                IERC1155(assetAddress).safeTransferFrom(address(this), msg.sender, assets[signatureCount].tokenId, 1, "");
+                IERC1155(assetAddress).safeTransferFrom(address(this), _to, assets[_assetId].tokenId, 1, "");
             }
-            assets[signatureCount].withdrawn = true;
         } else revert InvalidSignatureOrAlreadyWithdrawn();
     }
 
-    function isSignatureValid(uint256 sigId, address authority, uint256 deadline) private view returns (bool)
-    {
-        bytes32 messagehash = keccak256(
-            abi.encodePacked(sigId, authority, deadline)
-        );
+    function verify(
+        address _signer,
+        uint256 _assetId,
+        address _to,
+        uint256 _deadline,
+        bytes memory signature
+    ) public pure returns (bool) {
+        bytes32 messageHash = getMessageHash(_assetId, _to, _deadline);
+        bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(messageHash);
 
-        if (block.timestamp > deadline) revert SignatureOverdue();
+        return ECDSA.recover(ethSignedMessageHash, signature) == _signer;
+    }
 
-        if (messagehash == assets[signatureCount].signature) return true;
-        else return false;
+    function getMessageHash(
+        uint256 _assetId,
+        address _to,
+        uint256 _deadline
+    ) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_assetId, _to, _deadline));
     }
 }
