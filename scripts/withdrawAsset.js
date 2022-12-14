@@ -24,16 +24,14 @@ async function main() {
     const assetType = 0
     const tokenId = 0
     const assetAddress = ethers.constants.AddressZero
-    const unlockTime = 1671019228
+    const to = deployer.address
+    const assetId = 0
+    const deadline = 1690000000 // 22 July 2023
 
-    await vault.connect(deployer).createVault(
-        0, 
-        assetAddress, 
-        tokenId, 
-        0,
-        unlockTime,
-        { value: '100000' }
-    )
+    const hash = await vault.getMessageHash(assetId, to, deadline)  
+    const signature = await deployer.signMessage(ethers.utils.arrayify(hash))
+
+    await vault.connect(deployer).withdrawAsset(assetId, to, deadline, signature)
 }
 
 // This pattern is recommended to be able to use async/await everywhere and properly handle errors
