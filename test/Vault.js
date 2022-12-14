@@ -38,21 +38,120 @@ describe("Signatures", (accounts) => {
 
     erc20 = await ERC20.deploy("20Name", "20Symb"); 
     erc721 = await ERC721.deploy(); 
-   // erc1155 = await ERC1155.deploy(); 
-
+    erc1155 = await ERC1155.deploy(); 
 
     await erc20.connect(tokensDeployer).transfer(depositor.address, DEPOSIT_AMOUNT); 
     await erc721.connect(tokensDeployer).safeMint(depositor.address, 1); 
-   // await erc1155.connect(tokensDeployer).mint(depositor.address, 0, 1, ""); 
+    await erc1155.connect(tokensDeployer).mint(depositor.address, 1, 1, "0x"); 
   });
+
+  describe("asset: Ether", function () {
+    describe("vault creating", function () {
+      it("# getMessageHash", async function () {  
+        const to = user1.address
+        const assetId = 0
+        const deadline = 1690000000 // 22 July 2023
+    
+        await vault.getMessageHash(assetId, to, deadline)  
+      });
+  
+      it("# signMessage", async function () {  
+        const to = user1.address
+        const assetId = 0
+        const deadline = 1690000000 // 22 July 2023
+  
+        const hash = await vault.getMessageHash(assetId, to, deadline)  
+        const sig = await depositor.signMessage(ethers.utils.arrayify(hash))
+      });
+  
+      it("# createVault", async function () {  
+        const tokenId = 0
+        const assetAddress = ethers.constants.AddressZero
+        const unlockTime = (await time.latest()) + time.duration.hours(1); // 22 July 2023
+  
+        const balanceBeforeDeposit = await ethers.provider.getBalance(depositor.address)
+        const tx = await vault.connect(depositor).createVault(
+          0, 
+          assetAddress, 
+          tokenId, 
+          DEPOSIT_AMOUNT, 
+          unlockTime,
+          {  value: DEPOSIT_AMOUNT  }
+        )
+        const balanceAfterDeposit = await ethers.provider.getBalance(depositor.address)
+  
+        const txReceipt = await ethers.provider.getTransactionReceipt(tx.hash)
+  
+        const txFee = (txReceipt.cumulativeGasUsed).mul(txReceipt.effectiveGasPrice)
+        expect(balanceAfterDeposit).to.equal(balanceBeforeDeposit.sub(DEPOSIT_AMOUNT).sub(txFee))
+      });
+    })
+      
+    describe("withdrawal", function () {  
+      beforeEach(async function () {  
+        const to = user1.address
+        const assetId = 0
+        const deadline = 1690000000 // 22 July 2023
+        const tokenId = 0
+        const assetAddress = ethers.constants.AddressZero
+        const unlockTime = (await time.latest()) + time.duration.hours(1);
+  
+        const hash = await vault.getMessageHash(assetId, to, deadline)  
+        signature = await depositor.signMessage(ethers.utils.arrayify(hash))
+  
+        await vault.connect(depositor).createVault(
+          0, 
+          assetAddress, 
+          tokenId, 
+          DEPOSIT_AMOUNT, 
+          unlockTime,
+          {  value: DEPOSIT_AMOUNT  }
+        )      
+      });
+
+      it("reverts when withdrawing before unlocking", async function () {  
+        const to = user1.address
+        const assetId = 0
+        const deadline = 1690000000 // 22 July 2023
+
+        const tx = vault.connect(user1).withdrawAsset(assetId, to, deadline, signature)
+        await expect(tx).to.be.revertedWith("AssetLocked()");
+      });
+        
+      it("# withdraw asset", async function () {  
+        const to = user1.address
+        const assetId = 0
+        const deadline = 1690000000 // 22 July 2023
+  
+        await time.increase(time.duration.hours(2))
+
+        const balanceBeforeWithdraw = await ethers.provider.getBalance(user1.address)
+        const tx = await vault.connect(user1).withdrawAsset(assetId, to, deadline, signature)
+        const balanceAfterWithdraw = await ethers.provider.getBalance(user1.address)
+        const txReceipt = await ethers.provider.getTransactionReceipt(tx.hash)
+  
+        const txFee = (txReceipt.cumulativeGasUsed).mul(txReceipt.effectiveGasPrice)
+        expect(balanceAfterWithdraw).to.equal(balanceBeforeWithdraw.add(DEPOSIT_AMOUNT).sub(txFee))
+      });
+  
+      it("reverts when hacker tries to withdraw", async function () {  
+        const to = user1.address
+        const assetId = 0
+        const deadline = 1690000000 // 22 July 2023
+        await time.increase(time.duration.hours(2))
+
+        const tx = vault.connect(hacker).withdrawAsset(assetId, to, deadline, signature)
+        await expect(tx).to.be.reverted;
+      });
+    })
+  })
 
   describe("asset: ERC20", function () {
     describe("vault creating", function () {
 
       beforeEach(async function () {
         await erc20.connect(depositor).approve(vault.address, DEPOSIT_AMOUNT); 
-       // await erc721.connect(depositor).setApprovalForAll(vault.address, true); 
-       // await erc1155.connect(depositor).setApprovalForAll(vault.address, true); 
+
         snapshotA = await takeSnapshot();
         
       });
@@ -225,6 +324,15 @@ describe("Signatures", (accounts) => {
         expect(balanceBeforeDeposit).to.equal(balanceAfterDeposit.sub(1))
       });
   
+      it("reverts when user tries to withdraw not existed asset type", async function () {  
+        const to = user1.address
+        const assetId = 0
+        const deadline = 1690000000 // 22 July 2023
+  
+        const tx = vault.connect(hacker).withdrawAsset(4, to, deadline, signature)
+        await expect(tx).to.be.reverted;
+      });
+  
       it("reverts when hacker tries to withdraw", async function () {  
         const to = user1.address
         const assetId = 0
@@ -233,10 +341,109 @@ describe("Signatures", (accounts) => {
         const tx = vault.connect(hacker).withdrawAsset(assetId, to, deadline, signature)
         await expect(tx).to.be.reverted;
       });
-  
     })
   })
 
+  describe("asset: ERC1155", function () {
+    describe("vault creating", function () {
+
+      beforeEach(async function () {
+        await erc1155.connect(depositor).setApprovalForAll(vault.address, true); 
+        
+      });
+  
+  
+      it("# getMessageHash", async function () {  
+        const to = user1.address
+        const assetId = 2
+        const deadline = 1690000000 // 22 July 2023
+
+        await vault.getMessageHash(assetId, to, deadline)  
+      });
+  
+      it("# signMessage", async function () {  
+        const to = user1.address
+        const assetId = 0
+        const deadline = 1690000000 // 22 July 2023
+  
+        const hash = await vault.getMessageHash(assetId, to, deadline)  
+        const sig = await depositor.signMessage(ethers.utils.arrayify(hash))
+      });
+  
+      it("# createVault", async function () {  
+        const tokenId = 1
+        const assetAddress = erc1155.address
+        const unlockTime = (await time.latest()) + time.duration.hours(1);
+        // 22 July 2023
+  
+        const balanceBeforeDeposit = await erc1155.connect(depositor).balanceOf(depositor.address, 1)
+        await vault.connect(depositor).createVault(3, assetAddress, tokenId, DEPOSIT_AMOUNT, unlockTime)
+        const balanceAfterDeposit = await erc1155.connect(depositor).balanceOf(depositor.address, 1)
+  
+        expect(balanceBeforeDeposit).to.equal(balanceAfterDeposit.add(1))
+      });
+    })
+      
+    describe("withdrawal", function () {  
+      beforeEach(async function () {
+        await erc1155.connect(depositor).setApprovalForAll(vault.address, true); 
+  
+        const to = user1.address
+        const assetId = 0
+        const deadline = 1690000000 // 22 July 2023
+        const tokenId = 1
+        const assetAddress = erc1155.address
+        const unlockTime = (await time.latest()) + time.duration.hours(1);
+  
+        const hash = await vault.getMessageHash(assetId, to, deadline)  
+        signature = await depositor.signMessage(ethers.utils.arrayify(hash))
+  
+        await vault.connect(depositor).createVault(3, assetAddress, tokenId, DEPOSIT_AMOUNT, unlockTime)
+      });
+
+      it("reverts when withdrawing before unlocking", async function () {  
+        const to = user1.address
+        const assetId = 0
+        const deadline = 1690000000 // 22 July 2023
+
+        const tx = vault.connect(user1).withdrawAsset(assetId, to, deadline, signature)
+        await expect(tx).to.be.revertedWith("AssetLocked()");
+      });
+        
+      it("# withdraw asset", async function () {  
+        const to = user1.address
+        const assetId = 0
+        const deadline = 1690000000 // 22 July 2023
+        await time.increase(time.duration.hours(2))
+
+        const balanceBeforeDeposit = await erc1155.connect(user1).balanceOf(to, 1)
+        await vault.connect(user1).withdrawAsset(assetId, to, deadline, signature)
+        const balanceAfterDeposit = await erc1155.connect(user1).balanceOf(to, 1)
+
+        expect(balanceBeforeDeposit).to.equal(balanceAfterDeposit.sub(1))
+      });
+  
+      it("reverts when hacker tries to withdraw", async function () {  
+        const to = user1.address
+        const assetId = 0
+        const deadline = 1690000000 // 22 July 2023
+  
+        const tx = vault.connect(hacker).withdrawAsset(assetId, to, deadline, signature)
+        await expect(tx).to.be.reverted;
+      });
+
+      it("reverts when withdrawing after deadline", async function () {  
+        const to = user1.address
+        const assetId = 0
+        const deadline = 1690000000 // 22 July 2023
+        await time.increase(time.duration.days(1000))
+
+        const tx = vault.connect(user1).withdrawAsset(assetId, to, deadline, signature)
+        await expect(tx).to.be.revertedWith("SignatureOverdue()");
+      });
+  
+    })
+  })
 
 });
 
