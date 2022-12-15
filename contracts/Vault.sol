@@ -53,6 +53,7 @@ contract Vault is ERC721Holder, ERC1155Holder {
         assets[signatureCount].assetAddress = assetAddress;
         assets[signatureCount].tokenId = tokenId;
         assets[signatureCount].unlockTime = unlockTime;
+        signatureCount++;
     }
 
     function withdrawAsset(uint256 _assetId, address _to, uint256 _deadline, bytes memory signature) external {
