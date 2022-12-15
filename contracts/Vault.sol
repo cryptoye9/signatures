@@ -9,7 +9,11 @@ import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 
-
+/**
+ * @title Vault
+ * @notice Creating vaults for different asset types (Ether, ERC20, ERC721, ERC1155). 
+ * Withdrawing assets by signatures verifying. 
+ */
 contract Vault is ERC721Holder, ERC1155Holder {    
     using ECDSA for bytes32;
     using SafeERC20 for IERC20;
@@ -35,6 +39,16 @@ contract Vault is ERC721Holder, ERC1155Holder {
     error UnsupportedAsset();
     error ZeroAmount();
 
+    /**
+     * @notice Creates Vault by given asset type. Checks for not passing zero amount (tokens of Ether).
+     * If passed asset not Ether, than transferring tokens from sender account to Vault contract.
+     * Instance of Asset structure is being initialized.
+     * @param asset type of asset (might be Ether, ERC20, ERC721, ERC1155)
+     * @param assetAddress address of passed asset (relevant when passed asset is not Ether)
+     * @param tokenId token If of passed asset (relevant when passed asset is NFT (ERC721 of ERC1155) )
+     * @param amount amount of asset for vault creation (relevant when passed asset is not Ether)
+     * @param unlockTime timestamp when vault is becoming available for withdrawing
+     */
     function createVault(
         AssetType asset, 
         address assetAddress, 
@@ -58,6 +72,16 @@ contract Vault is ERC721Holder, ERC1155Holder {
         signatureCount++;
     }
 
+    /**
+     * @notice Withdraws asset from vault. Asset is being withdrawn by verifying signature.
+     * It is possible to withdraw asset only after token becomes unlocked.
+     * For every signature there is deadline after which signature becoming invalid.
+     * Each asset might be withdrawn only once.
+     * @param _assetId id of asset in Vault
+     * @param _to address to withdraw asset
+     * @param _deadline deadline for signature which must be not overdue
+     * @param signature signature which was signed by vault creator
+     */
     function withdrawAsset(uint256 _assetId, address _to, uint256 _deadline, bytes memory signature) external {
         if (verify(assets[_assetId].depositor, _assetId, msg.sender, _deadline, signature) && !assets[_assetId].withdrawn) {
             if (block.timestamp > _deadline) revert SignatureOverdue();
@@ -77,6 +101,15 @@ contract Vault is ERC721Holder, ERC1155Holder {
         } else revert InvalidSignatureOrAlreadyWithdrawn();
     }
 
+    /**
+     * @notice Verifies signature for given parameters. 
+     * Returnes true when signature with given parameters was signed by vault creator.
+     * @param _signer address of vault creator   
+     * @param _assetId id of asset in Vault
+     * @param _to address to withdraw asset
+     * @param _deadline deadline for signature which must be not overdue
+     * @param signature signature which was signed by vault creator
+     */
     function verify(
         address _signer,
         uint256 _assetId,
@@ -90,6 +123,12 @@ contract Vault is ERC721Holder, ERC1155Holder {
         return ECDSA.recover(ethSignedMessageHash, signature) == _signer;
     }
 
+    /**
+     * @notice Returns keccak256 hash of given parameters list
+     * @param _assetId id of asset in Vault
+     * @param _to address to withdraw asset
+     * @param _deadline deadline for signature which must be not overdue
+     */
     function getMessageHash(
         uint256 _assetId,
         address _to,
