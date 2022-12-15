@@ -21,12 +21,9 @@ async function main() {
     const vault = new ethers.Contract(Vault_addr, vaultABI, deployer)
    // console.log(await vault.assets(0))
 
-    const assetType = 0
-    const tokenId = 0
-    const assetAddress = ethers.constants.AddressZero
     const to = deployer.address
-    const assetId = 0
-    const deadline = 1690000000 // 22 July 2023
+    const assetId = process.env.ASSET_ID
+    const deadline = process.env.SIGNATURE_DEADLINE // 22 July 2023
 
     const hash = await vault.getMessageHash(assetId, to, deadline)  
     const signature = await deployer.signMessage(ethers.utils.arrayify(hash))
