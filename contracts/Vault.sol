@@ -33,6 +33,7 @@ contract Vault is ERC721Holder, ERC1155Holder {
     error SignatureOverdue();
     error AssetLocked();
     error UnsupportedAsset();
+    error ZeroAmount();
 
     function createVault(
         AssetType asset, 
@@ -44,6 +45,7 @@ contract Vault is ERC721Holder, ERC1155Holder {
         if (asset == AssetType.ERC20) IERC20(assetAddress).safeTransferFrom(msg.sender, address(this), amount);
         else if (asset == AssetType.ERC721) IERC721(assetAddress).safeTransferFrom(msg.sender, address(this), tokenId);
         else if (asset == AssetType.ERC1155) IERC1155(assetAddress).safeTransferFrom(msg.sender, address(this), tokenId, 1, "");
+        if (asset == AssetType.Ether && msg.value == 0 || amount == 0) revert ZeroAmount();
         if (asset == AssetType.Ether) {
             assets[signatureCount].amount = msg.value;
         } else assets[signatureCount].amount = amount;
