@@ -83,7 +83,7 @@ contract Vault is ERC721Holder, ERC1155Holder {
         address _to,
         uint256 _deadline,
         bytes memory signature
-    ) public pure returns (bool) {
+    ) private pure returns (bool) {
         bytes32 messageHash = getMessageHash(_assetId, _to, _deadline);
         bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(messageHash);
 
