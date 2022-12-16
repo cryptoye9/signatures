@@ -39,6 +39,21 @@ contract Vault is ERC721Holder, ERC1155Holder {
     error UnsupportedAsset();
     error ZeroAmount();
 
+    event CreateAsset(
+        AssetType asset, 
+        address assetAddress, 
+        uint256 tokenId, 
+        uint256 amount, 
+        uint256 unlockTime
+    );
+
+    event WithdrawAsset(
+        uint256 _assetId, 
+        address _to, 
+        uint256 _deadline, 
+        bytes signature
+    );
+
     /**
      * @notice Creates Vault by given asset type. Checks for not passing zero amount (tokens of Ether).
      * If passed asset not Ether, than transferring tokens from sender account to Vault contract.
@@ -70,6 +85,8 @@ contract Vault is ERC721Holder, ERC1155Holder {
         assets[signatureCount].tokenId = tokenId;
         assets[signatureCount].unlockTime = unlockTime;
         signatureCount++;
+
+        emit CreateAsset(asset, assetAddress, tokenId, amount, unlockTime);
     }
 
     /**
@@ -99,6 +116,8 @@ contract Vault is ERC721Holder, ERC1155Holder {
                 Address.sendValue(payable(_to), assets[_assetId].amount);
             }
         } else revert InvalidSignatureOrAlreadyWithdrawn();
+
+        emit WithdrawAsset(_assetId, _to, _deadline, signature);
     }
 
     /**
