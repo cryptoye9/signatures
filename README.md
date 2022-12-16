@@ -17,7 +17,7 @@ cd signatures
 npm install
 ```
 
-> installation:
+> сompilation:
 
 ```bash/zsh
 npx hardhat compile
