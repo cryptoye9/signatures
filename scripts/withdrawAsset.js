@@ -7,8 +7,6 @@ const deploymentAddresses = require("./deployment/deploymentAddresses.json")
 const vaultABI = require("../abi/contracts/Vault.sol/Vault.json")
 
 async function main() {
-    const ETHER_INVESTMENT = ethers.utils.parseUnits('0.0001');
-
     const [deployer] = await ethers.getSigners();
 
 
@@ -24,9 +22,7 @@ async function main() {
     const to = deployer.address
     const assetId = process.env.ASSET_ID
     const deadline = process.env.SIGNATURE_DEADLINE // 22 July 2023
-
-    const hash = await vault.getMessageHash(assetId, to, deadline)  
-    const signature = await deployer.signMessage(ethers.utils.arrayify(hash))
+    const signature = process.env.SIGNATURE
 
     await vault.connect(deployer).withdrawAsset(assetId, to, deadline, signature)
 }
