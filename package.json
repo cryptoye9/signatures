@@ -22,6 +22,7 @@
         "vault:erc20": "ENABLED_OPTIMIZER=true npx hardhat run scripts/createERC20Vault.js --network testnet",
         "vault:erc721": "ENABLED_OPTIMIZER=true npx hardhat run scripts/createERC721Vault.js --network testnet",
         "vault:erc1155": "ENABLED_OPTIMIZER=true npx hardhat run scripts/createERC1155Vault.js --network testnet",
+        "vault:sign": "ENABLED_OPTIMIZER=true npx hardhat run scripts/sign.js --network testnet",
         "withdrawAsset": "ENABLED_OPTIMIZER=true npx hardhat run scripts/withdrawAsset.js --network testnet",
         "ndeploy:all": "ENABLED_OPTIMIZER=true npm run compile-all && node scripts/deployment/deploy.js",
         "dev:abi": "npx hardhat clear-abi && npx hardhat export-abi",
@@ -88,7 +89,7 @@
         "web3": "^1.7.3"
     },
     "engines": {
-        "node": ">= 14.0.0",
+        "node": ">= 16.0.0",
         "npm": ">= 6.0.0"
     }
 }
